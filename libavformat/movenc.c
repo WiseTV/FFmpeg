@@ -2368,10 +2368,14 @@ static int mov_write_tkhd_tag(AVIOContext *pb, MOVMuxContext *mov,
             avio_wb32(pb, track->enc->width << 16);
             avio_wb32(pb, track->height << 16);
         } else {
-            double sample_aspect_ratio = av_q2d(st->sample_aspect_ratio);
-            if (!sample_aspect_ratio || track->height != track->enc->height)
-                sample_aspect_ratio = 1;
-            avio_wb32(pb, sample_aspect_ratio * track->enc->width * 0x10000);
+            int64_t track_width_1616 = av_rescale(st->sample_aspect_ratio.num,
+                                                  track->enc->width * 0x10000LL,
+                                                  st->sample_aspect_ratio.den);
+            if (!track_width_1616 ||
+                track->height != track->enc->height ||
+                track_width_1616 > UINT32_MAX)
+                track_width_1616 = track->enc->width * 0x10000;
+            avio_wb32(pb, track_width_1616);
             avio_wb32(pb, track->height * 0x10000);
         }
     } else {
@@ -3076,6 +3080,7 @@ static int mov_write_udta_tag(AVIOContext *pb, MOVMuxContext *mov,
         mov_write_string_metadata(s, pb_buf, "\251cpy", "copyright",   0);
         mov_write_string_metadata(s, pb_buf, "\251mak", "make",        0);
         mov_write_string_metadata(s, pb_buf, "\251mod", "model",       0);
+        mov_write_string_metadata(s, pb_buf, "\251xyz", "location",    0);
         mov_write_raw_metadata_tag(s, pb_buf, "XMP_", "xmp");
     } else {
         /* iTunes meta data */

@@ -41,94 +41,13 @@
 #include "mathops.h"
 #include "mpegutils.h"
 #include "mpegvideo.h"
+#include "mpegvideodata.h"
 #include "mjpegenc.h"
 #include "msmpeg4.h"
 #include "qpeldsp.h"
 #include "thread.h"
+#include "wmv2.h"
 #include <limits.h>
-
-static const uint8_t ff_default_chroma_qscale_table[32] = {
-//   0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
-     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
-    16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
-};
-
-const uint8_t ff_mpeg1_dc_scale_table[128] = {
-//  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
-    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-};
-
-static const uint8_t mpeg2_dc_scale_table1[128] = {
-//  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-};
-
-static const uint8_t mpeg2_dc_scale_table2[128] = {
-//  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-};
-
-static const uint8_t mpeg2_dc_scale_table3[128] = {
-//  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-};
-
-const uint8_t *const ff_mpeg2_dc_scale_table[4] = {
-    ff_mpeg1_dc_scale_table,
-    mpeg2_dc_scale_table1,
-    mpeg2_dc_scale_table2,
-    mpeg2_dc_scale_table3,
-};
-
-const uint8_t ff_alternate_horizontal_scan[64] = {
-     0,  1,  2,  3,  8,  9, 16, 17,
-    10, 11,  4,  5,  6,  7, 15, 14,
-    13, 12, 19, 18, 24, 25, 32, 33,
-    26, 27, 20, 21, 22, 23, 28, 29,
-    30, 31, 34, 35, 40, 41, 48, 49,
-    42, 43, 36, 37, 38, 39, 44, 45,
-    46, 47, 50, 51, 56, 57, 58, 59,
-    52, 53, 54, 55, 60, 61, 62, 63,
-};
-
-const uint8_t ff_alternate_vertical_scan[64] = {
-     0,  8, 16, 24,  1,  9,  2, 10,
-    17, 25, 32, 40, 48, 56, 57, 49,
-    41, 33, 26, 18,  3, 11,  4, 12,
-    19, 27, 34, 42, 50, 58, 35, 43,
-    51, 59, 20, 28,  5, 13,  6, 14,
-    21, 29, 36, 44, 52, 60, 37, 45,
-    53, 61, 22, 30,  7, 15, 23, 31,
-    38, 46, 54, 62, 39, 47, 55, 63,
-};
 
 static void dct_unquantize_mpeg1_intra_c(MpegEncContext *s,
                                    int16_t *block, int n, int qscale)
@@ -811,15 +730,6 @@ fail:
     return ret;
 }
 
-static void exchange_uv(MpegEncContext *s)
-{
-    int16_t (*tmp)[64];
-
-    tmp           = s->pblocks[4];
-    s->pblocks[4] = s->pblocks[5];
-    s->pblocks[5] = tmp;
-}
-
 static int init_duplicate_context(MpegEncContext *s)
 {
     int y_size = s->b8_stride * (2 * s->mb_height + 1);
@@ -853,8 +763,10 @@ static int init_duplicate_context(MpegEncContext *s)
     for (i = 0; i < 12; i++) {
         s->pblocks[i] = &s->block[i];
     }
-    if (s->avctx->codec_tag == AV_RL32("VCR2"))
-        exchange_uv(s);
+    if (s->avctx->codec_tag == AV_RL32("VCR2")) {
+        // exchange uv
+        FFSWAP(void *, s->pblocks[4], s->pblocks[5]);
+    }
 
     if (s->out_format == FMT_H263) {
         /* ac values */
@@ -929,8 +841,10 @@ int ff_update_duplicate_context(MpegEncContext *dst, MpegEncContext *src)
     for (i = 0; i < 12; i++) {
         dst->pblocks[i] = &dst->block[i];
     }
-    if (dst->avctx->codec_tag == AV_RL32("VCR2"))
-        exchange_uv(dst);
+    if (dst->avctx->codec_tag == AV_RL32("VCR2")) {
+        // exchange uv
+        FFSWAP(void *, dst->pblocks[4], dst->pblocks[5]);
+    }
     if (!dst->edge_emu_buffer &&
         (ret = frame_size_alloc(dst, dst->linesize)) < 0) {
         av_log(dst->avctx, AV_LOG_ERROR, "failed to allocate context "
@@ -1044,11 +958,16 @@ do {\
 
     if (s1->bitstream_buffer) {
         if (s1->bitstream_buffer_size +
-            FF_INPUT_BUFFER_PADDING_SIZE > s->allocated_bitstream_buffer_size)
+            FF_INPUT_BUFFER_PADDING_SIZE > s->allocated_bitstream_buffer_size) {
             av_fast_malloc(&s->bitstream_buffer,
                            &s->allocated_bitstream_buffer_size,
                            s1->allocated_bitstream_buffer_size);
-            s->bitstream_buffer_size = s1->bitstream_buffer_size;
+            if (!s->bitstream_buffer) {
+                s->bitstream_buffer_size = 0;
+                return AVERROR(ENOMEM);
+            }
+        }
+        s->bitstream_buffer_size = s1->bitstream_buffer_size;
         memcpy(s->bitstream_buffer, s1->bitstream_buffer,
                s1->bitstream_buffer_size);
         memset(s->bitstream_buffer + s->bitstream_buffer_size, 0,
@@ -1574,102 +1493,6 @@ void ff_mpv_common_end(MpegEncContext *s)
     s->next_picture_ptr         =
     s->current_picture_ptr      = NULL;
     s->linesize = s->uvlinesize = 0;
-}
-
-av_cold void ff_init_rl(RLTable *rl,
-                        uint8_t static_store[2][2 * MAX_RUN + MAX_LEVEL + 3])
-{
-    int8_t  max_level[MAX_RUN + 1], max_run[MAX_LEVEL + 1];
-    uint8_t index_run[MAX_RUN + 1];
-    int last, run, level, start, end, i;
-
-    /* If table is static, we can quit if rl->max_level[0] is not NULL */
-    if (static_store && rl->max_level[0])
-        return;
-
-    /* compute max_level[], max_run[] and index_run[] */
-    for (last = 0; last < 2; last++) {
-        if (last == 0) {
-            start = 0;
-            end = rl->last;
-        } else {
-            start = rl->last;
-            end = rl->n;
-        }
-
-        memset(max_level, 0, MAX_RUN + 1);
-        memset(max_run, 0, MAX_LEVEL + 1);
-        memset(index_run, rl->n, MAX_RUN + 1);
-        for (i = start; i < end; i++) {
-            run   = rl->table_run[i];
-            level = rl->table_level[i];
-            if (index_run[run] == rl->n)
-                index_run[run] = i;
-            if (level > max_level[run])
-                max_level[run] = level;
-            if (run > max_run[level])
-                max_run[level] = run;
-        }
-        if (static_store)
-            rl->max_level[last] = static_store[last];
-        else
-            rl->max_level[last] = av_malloc(MAX_RUN + 1);
-        memcpy(rl->max_level[last], max_level, MAX_RUN + 1);
-        if (static_store)
-            rl->max_run[last]   = static_store[last] + MAX_RUN + 1;
-        else
-            rl->max_run[last]   = av_malloc(MAX_LEVEL + 1);
-        memcpy(rl->max_run[last], max_run, MAX_LEVEL + 1);
-        if (static_store)
-            rl->index_run[last] = static_store[last] + MAX_RUN + MAX_LEVEL + 2;
-        else
-            rl->index_run[last] = av_malloc(MAX_RUN + 1);
-        memcpy(rl->index_run[last], index_run, MAX_RUN + 1);
-    }
-}
-
-av_cold void ff_init_vlc_rl(RLTable *rl, unsigned static_size)
-{
-    int i, q;
-    VLC_TYPE table[1500][2] = {{0}};
-    VLC vlc = { .table = table, .table_allocated = static_size };
-    av_assert0(static_size <= FF_ARRAY_ELEMS(table));
-    init_vlc(&vlc, 9, rl->n + 1, &rl->table_vlc[0][1], 4, 2, &rl->table_vlc[0][0], 4, 2, INIT_VLC_USE_NEW_STATIC);
-
-    for (q = 0; q < 32; q++) {
-        int qmul = q * 2;
-        int qadd = (q - 1) | 1;
-
-        if (q == 0) {
-            qmul = 1;
-            qadd = 0;
-        }
-        for (i = 0; i < vlc.table_size; i++) {
-            int code = vlc.table[i][0];
-            int len  = vlc.table[i][1];
-            int level, run;
-
-            if (len == 0) { // illegal code
-                run   = 66;
-                level = MAX_LEVEL;
-            } else if (len < 0) { // more bits needed
-                run   = 0;
-                level = code;
-            } else {
-                if (code == rl->n) { // esc
-                    run   = 66;
-                    level =  0;
-                } else {
-                    run   = rl->table_run[code] + 1;
-                    level = rl->table_level[code] * qmul + qadd;
-                    if (code >= rl->last) run += 192;
-                }
-            }
-            rl->rl_vlc[q][i].len   = len;
-            rl->rl_vlc[q][i].level = level;
-            rl->rl_vlc[q][i].run   = run;
-        }
-    }
 }
 
 static void release_unused_pictures(AVCodecContext *avctx, Picture *picture)

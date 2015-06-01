@@ -32,6 +32,7 @@
 #include "libavutil/attributes.h"
 #include "avcodec.h"
 #include "mpegvideo.h"
+#include "mpegvideodata.h"
 #include "h263.h"
 #include "mathops.h"
 #include "mpegutils.h"
@@ -764,8 +765,8 @@ av_cold void ff_h263_encode_init(MpegEncContext *s)
     if (!done) {
         done = 1;
 
-        ff_init_rl(&ff_h263_rl_inter, ff_h263_static_rl_table_store[0]);
-        ff_init_rl(&ff_rl_intra_aic, ff_h263_static_rl_table_store[1]);
+        ff_rl_init(&ff_h263_rl_inter, ff_h263_static_rl_table_store[0]);
+        ff_rl_init(&ff_rl_intra_aic, ff_h263_static_rl_table_store[1]);
 
         init_uni_h263_rl_tab(&ff_rl_intra_aic, NULL, uni_h263_intra_aic_rl_len);
         init_uni_h263_rl_tab(&ff_h263_rl_inter    , NULL, uni_h263_inter_rl_len);

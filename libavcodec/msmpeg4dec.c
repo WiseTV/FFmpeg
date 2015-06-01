@@ -33,6 +33,7 @@
 #include "mpeg4video.h"
 #include "msmpeg4data.h"
 #include "vc1data.h"
+#include "wmv2.h"
 
 #define DC_VLC_BITS 9
 #define V2_INTRA_CBPC_VLC_BITS 3
@@ -301,7 +302,7 @@ av_cold int ff_msmpeg4_decode_init(AVCodecContext *avctx)
 
     if (!done) {
         for(i=0;i<NB_RL_TABLES;i++) {
-            ff_init_rl(&ff_rl_table[i], ff_static_rl_table_store[i]);
+            ff_rl_init(&ff_rl_table[i], ff_static_rl_table_store[i]);
         }
         INIT_VLC_RL(ff_rl_table[0], 642);
         INIT_VLC_RL(ff_rl_table[1], 1104);
